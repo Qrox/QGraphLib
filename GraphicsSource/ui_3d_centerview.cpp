@@ -1,14 +1,20 @@
 #include "ui_3d_centerview.h"
 
+#ifdef DEBUG
+#define DEBUG_CONST 1
+#else
+#define DEBUG_CONST 0
+#endif
+
 using namespace std;
 
 float constexpr pi = 3.14159265358979323846f;
 
 namespace ui {
-    ui_3d_centerview::ui_3d_centerview() : show_axis(DEBUG), auto_repaint(true), eye_dist(1), eye(1, 0, 0), stance(0, 0, 1) {
+    ui_3d_centerview::ui_3d_centerview() : show_axis(DEBUG_CONST), auto_repaint(true), eye_dist(1), eye(1, 0, 0), stance(0, 0, 1) {
     }
 
-    ui_3d_centerview::ui_3d_centerview(vec3 const & eye, vec3 const & stance) : show_axis(DEBUG), auto_repaint(true), eye_dist(eye.mod()), eye(eye / eye_dist), stance(eye.cross(stance.cross(eye)).normalize()) {
+    ui_3d_centerview::ui_3d_centerview(vec3 const & eye, vec3 const & stance) : show_axis(DEBUG_CONST), auto_repaint(true), eye_dist(eye.mod()), eye(eye / eye_dist), stance(eye.cross(stance.cross(eye)).normalize()) {
     }
 
     void ui_3d_centerview::onMouseMove(int oldx, int oldy, int newx, int newy, vector<vk> const & keystate) {

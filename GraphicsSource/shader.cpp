@@ -41,12 +41,12 @@ shader::shader(GLenum type, string file) {
                         glDeleteShader(id);
                         id = 0;
                     }
-    #ifdef DEBUG
+#ifdef DEBUG
                     else {
                         cout << "compiler logs:" << endl;
                         printlog();
                     }
-    #endif
+#endif
                 }
                 delete [] data;
             }
@@ -144,9 +144,9 @@ bool shaderprogram::link() {
         else {
             cout << "linker logs:" << endl;
             printlog();
-            return true;
         }
 #endif
+        return true;
     } else return false;
 }
 
