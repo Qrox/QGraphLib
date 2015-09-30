@@ -6,6 +6,16 @@
 double constexpr pi = 3.14159265358979323846;
 
 template <typename T>
+T sqr(T x) {
+    return x * x;
+}
+
+template <typename T>
+T distance2d(T x0, T y0, T x1, T y1) {
+    return sqrt(sqr(x1 - x0) + sqr(y1 - y0));
+}
+
+template <typename T>
 void solve_quadric_equation(T a, T b, T c, T * res) {
     if (a == 0) {
         res[0] = -c / b;

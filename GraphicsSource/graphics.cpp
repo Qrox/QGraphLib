@@ -5,6 +5,7 @@
 #include <iostream>
 #include <algorithm>
 
+#include "advancedmath.h"
 #include "profiler.h"
 
 using namespace std;
@@ -351,17 +352,12 @@ namespace ui {
                 glUniform1f(font_emsize, emsize);
                 float height = emotm.otmTextMetrics.tmHeight;
                 float accent = emotm.otmMacAscent;
-                float scale = fsize / height, invscale = 1 / scale;
+                float scale = fsize / height;
                 float textomdlscale = scale / 65536.f;
-                float l = info.gm.gmptGlyphOrigin.x,
-                      t = info.gm.gmptGlyphOrigin.y,
-                      r = l + info.gm.gmBlackBoxX,
-                      b = t - info.gm.gmBlackBoxY;
-                l -= invscale; r += invscale; t += invscale; b -= invscale; // todo anti-alias margin. currently only works with non-scaled 2d painting
-                float cl = l * 65536.f,
-                      ct = t * 65536.f,
-                      cr = r * 65536.f,
-                      cb = b * 65536.f;
+                float chrl = info.gm.gmptGlyphOrigin.x,
+                      chrt = info.gm.gmptGlyphOrigin.y,
+                      chrr = chrl + info.gm.gmBlackBoxX,
+                      chrb = chrt - info.gm.gmBlackBoxY;
                 float mscreen[16] = {   // column major
                     float(viewport[2]), 0, 0, 0,
                     0, float(viewport[3]), 0, 0,
@@ -373,63 +369,96 @@ namespace ui {
                     0, 0, textomdlscale, 0,
                     0, 0, 0, 1,
                 };
-                float vl = l,
-                      vt = -t,
-                      vr = r,
-                      vb = -b;
                 switch (halign) {
                 case h_align::left:
                     break;
                 case h_align::center: {
                     float off = info.gm.gmCellIncX * .5;
-                    vl -= off;
-                    vr -= off;
+                    chrl -= off;
+                    chrr -= off;
                     mtextomdl[12] = -off;
                 }   break;
                 case h_align::right: {
                     float off = info.gm.gmCellIncX;
-                    vl -= off;
-                    vr -= off;
+                    chrl -= off;
+                    chrr -= off;
                     mtextomdl[12] = -off;
                 }   break;
                 }
                 switch (valign) {
                 case v_align::top: {
                     float off = accent + .5;
-                    vt += off;
-                    vb += off;
+                    chrt += off;
+                    chrb += off;
                     mtextomdl[13] = off;
                 }   break;
                 case v_align::center: {
                     float off = accent + .5 - height * .5;
-                    vt += off;
-                    vb += off;
+                    chrt += off;
+                    chrb += off;
                     mtextomdl[13] = off;
                 }   break;
                 case v_align::baseline:
                     break;
                 case v_align::bottom: {
                     float off = accent + .5 - height;
-                    vt += off;
-                    vb += off;
+                    chrt += off;
+                    chrb += off;
                     mtextomdl[13] = off;
                 }   break;
                 }
-                vl *= scale;
-                vt *= scale;
-                vr *= scale;
-                vb *= scale;
                 mtextomdl[12] *= scale;
                 mtextomdl[13] *= scale;
+                float mdll = chrl * scale,
+                      mdlt = -chrt * scale,
+                      mdlr = chrr * scale,
+                      mdlb = -chrb * scale;
+
+                GLdouble vscr[4][3];
+                GLdouble matrix_modelview[16], matrix_projection[16];
+                glGetDoublev(GL_MODELVIEW_MATRIX, matrix_modelview);
+                glGetDoublev(GL_PROJECTION_MATRIX, matrix_projection);
+                gluProject(mdll, mdlt, 0., matrix_modelview, matrix_projection, viewport, &vscr[0][0], &vscr[0][1], &vscr[0][2]);
+                gluProject(mdll, mdlb, 0., matrix_modelview, matrix_projection, viewport, &vscr[1][0], &vscr[1][1], &vscr[1][2]);
+                gluProject(mdlr, mdlb, 0., matrix_modelview, matrix_projection, viewport, &vscr[2][0], &vscr[2][1], &vscr[2][2]);
+                gluProject(mdlr, mdlt, 0., matrix_modelview, matrix_projection, viewport, &vscr[3][0], &vscr[3][1], &vscr[3][2]);
+                bool docalc = true;
+                for (int i = 0; i < 4; ++i) {
+                    if (vscr[i][2] <= 0) {
+                        docalc = false;
+                        break;
+                    } else {
+                        vscr[i][0] /= vscr[i][2];
+                        vscr[i][1] /= vscr[i][2];
+                    }
+                }
+                if (docalc) {
+                    float sclt = fabsf(mdlr - mdll) / distance2d(vscr[0][0], vscr[0][1], vscr[3][0], vscr[3][1]);
+                    float sclb = fabsf(mdlr - mdll) / distance2d(vscr[1][0], vscr[1][1], vscr[2][0], vscr[2][1]);
+                    float scll = fabsf(mdlb - mdlt) / distance2d(vscr[0][0], vscr[0][1], vscr[1][0], vscr[1][1]);
+                    float sclr = fabsf(mdlb - mdlt) / distance2d(vscr[3][0], vscr[3][1], vscr[2][0], vscr[2][1]);
+                    mdll -= (sclt + sclb) * .5f;
+                    mdlt -= (scll + sclr) * .5f;
+                    mdlr += (sclt + sclb) * .5f;
+                    mdlb += (scll + sclr) * .5f;    // todo: extends each point, instead of each edge
+                    chrl = mdll / scale;
+                    chrt = mdlt / -scale;
+                    chrr = mdlr / scale;
+                    chrb = mdlb / -scale;
+                }
+                float texl = chrl * 65536.f,
+                      text = chrt * 65536.f,
+                      texr = chrr * 65536.f,
+                      texb = chrb * 65536.f;
                 glUniformMatrix4fv(font_mscreen, 1, false, mscreen);
                 glUniformMatrix4fv(font_mtextomdl, 1, false, mtextomdl);
                 glPushAttrib(GL_ENABLE_BIT);
                 glDisable(GL_CULL_FACE);
                 glBegin(GL_QUADS);
-                glVertexAttrib2f(font_coord, cl, ct); glVertex2f(vl, vt);
-                glVertexAttrib2f(font_coord, cl, cb); glVertex2f(vl, vb);
-                glVertexAttrib2f(font_coord, cr, cb); glVertex2f(vr, vb);
-                glVertexAttrib2f(font_coord, cr, ct); glVertex2f(vr, vt);
+                glVertexAttrib2f(font_coord, texl, text); glVertex2f(mdll, mdlt);
+                glVertexAttrib2f(font_coord, texl, texb); glVertex2f(mdll, mdlb);
+                glVertexAttrib2f(font_coord, texr, texb); glVertex2f(mdlr, mdlb);
+                glVertexAttrib2f(font_coord, texr, text); glVertex2f(mdlr, mdlt);
                 glEnd();
                 glPopAttrib();
                 if (translate) glTranslatef(info.gm.gmCellIncX * scale, info.gm.gmCellIncY * scale, 0);
